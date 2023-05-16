@@ -1,0 +1,23 @@
+{
+  "name": "web-chat-server",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start:lp": "nodemon long-polling.js",
+    "start:es": "nodemon event-sorcing.js",
+    "start:ws": "nodemon web-socket.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}
