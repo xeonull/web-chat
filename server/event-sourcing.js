@@ -10,11 +10,22 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get("/get-message", (req, res) => {
-  emitter.once("NewMessage", (message) => {
-    res.json(message);
+app.get("/connect", (req, res) => {
+  res.writeHead(200, {
+    Connection: "keep-alive",
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+  });
+  emitter.on("NewMessage", (message) => {
+    res.write(`data: ${JSON.stringify(message)}\n\n`);
   });
 });
+
+// app.get("/get-message", (req, res) => {
+//   emitter.once("NewMessage", (message) => {
+//     res.json(message);
+//   });
+// });
 
 app.post("/new-message", (req, res) => {
   const message = req.body;

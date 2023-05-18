@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "start:lp": "nodemon long-polling.js",
-    "start:es": "nodemon event-sorcing.js",
+    "start:es": "nodemon event-sourcing.js",
     "start:ws": "nodemon web-socket.js"
   },
   "keywords": [],
