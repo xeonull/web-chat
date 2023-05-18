@@ -2,8 +2,8 @@
   <div class="chat">
     <div class="chat_header">
       <div class="chat_header_label">name:</div>
-      <input type="text" :disabled="connected" class="chat_header_username input" v-model="userName" />
-      <button type="button" :disabled="connected" class="btn btn_default" @click="initChat">connect</button>
+      <input type="text" :disabled="isConnected" class="chat_header_username input" v-model="userName" placeholder="Enter your name" />
+      <button type="button" :disabled="isConnected" class="btn btn_default" @click="initChat">connect</button>
     </div>
 
     <div class="chat_history">
@@ -14,8 +14,8 @@
     </div>
 
     <div class="chat_tools">
-      <input type="text" :disabled="!connected" class="input" v-model="messageText" />
-      <button type="button" :disabled="!connected" class="btn btn_circle" @click="sendMessage">
+      <input type="text" :disabled="!isConnected" class="input" v-model="messageText" placeholder="Enter message text" />
+      <button type="button" :disabled="!isConnected" class="btn btn_circle" @click="send">
         <font-awesome-icon icon="fa-solid fa-paper-plane" class="icon" />
       </button>
     </div>
@@ -23,56 +23,26 @@
 </template>
 
 <script setup lang="ts">
-import axios from "axios";
 import { nextTick, ref, Ref } from "vue";
-import { IMessage } from "@/types/message";
+import { useWebConnection } from "@/composibles/useWebConnection";
+import { ConnectionType } from "@/types/connection";
 
-// defineProps<{ msg: string }>();
-
-const userName: Ref<string> = ref("");
-const messageText: Ref<string> = ref("");
-const messageList: Ref<IMessage[]> = ref([]);
-const connected: Ref<boolean> = ref(false);
+const props = defineProps<{ connectionType: ConnectionType }>();
 
 const chat_history_bottom: Ref<HTMLElement | undefined> = ref();
 
+const { connect, subscribe, send, isConnected, messageList, messageText, userName } = useWebConnection(props.connectionType);
+
 const initChat = async () => {
-  connected.value = true;
-  subscribe();
-};
-
-const subscribe = async () => {
   try {
-    const { data } = await axios.get("http://localhost:5000/get-message");
-
-    messageList.value = [...messageList.value, data];
-    await nextTick();
-    chat_history_bottom.value?.scrollIntoView({ behavior: "smooth" });
-
-    subscribe();
+    await connect();
+    subscribe(async () => {
+      await nextTick();
+      chat_history_bottom.value?.scrollIntoView({ behavior: "smooth" });
+    });
   } catch (error) {
-    setTimeout(() => {
-      subscribe();
-    }, 500);
+    console.error(error);
   }
-};
-
-const sendMessage = async () => {
-  await axios.post(
-    "http://localhost:5000/new-message",
-    {
-      id: Date.now(),
-      text: messageText.value,
-      user: userName.value,
-    }
-    // {
-    //   headers: {
-    //     "Cache-Control": "no-cache",
-    //     Pragma: "no-cache",
-    //     Expires: "0",
-    //   },
-    // }
-  );
 };
 </script>
 
@@ -112,6 +82,7 @@ const sendMessage = async () => {
   height: 600px;
   width: 450px;
   background-color: none;
+  margin: auto;
   &_header {
     display: flex;
     align-items: center;
