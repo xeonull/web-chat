@@ -12,14 +12,9 @@ const isConnected: Ref<boolean> = ref(false);
 function useWs() {
   let socket: WebSocket;
 
-  function init() {
-    console.log("socket:", socket);
-    if (!socket || socket.readyState === socket.CLOSED) socket = new WebSocket(Api.WS_SERVER);
-  }
-
-  const connect = () => {
-    try {
-      init();
+  function connect() {
+    if (!socket || socket.readyState === socket.CLOSED) {
+      socket = new WebSocket(Api.WS_SERVER);
       socket.onopen = () => {
         const message: IMessage = {
           event: "connection",
@@ -36,22 +31,21 @@ function useWs() {
         isConnected.value = false;
         console.log("WebSocket connection closed");
       };
-    } catch (error) {
-      throw new Error("WS Server Connection Error");
     }
-  };
+  }
 
   const subscribe = async (cbAfterGetMessage: Function) => {
-    init();
+    connect();
     socket.onmessage = async (event) => {
       const message: IMessage = JSON.parse(event.data);
-      if (message.text.length) messageList.value = [...messageList.value, message];
+      messageList.value = [...messageList.value, message];
       await cbAfterGetMessage();
     };
   };
 
   const send = async () => {
-    init();
+    if (messageText.value === "") return;
+    if (!socket || socket.readyState !== socket.OPEN) return;
     const message: IMessage = {
       event: "message",
       id: Date.now(),
@@ -59,10 +53,10 @@ function useWs() {
       text: messageText.value,
     };
     socket?.send(JSON.stringify(message));
+    messageText.value = "";
   };
 
   return {
-    connect,
     send,
     subscribe,
   };
@@ -70,64 +64,67 @@ function useWs() {
 
 function useHttp() {
   const connect = async () => {
-    try {
-      const data = await Api.checkConnection();
-      if (data?.status === 200) isConnected.value = true;
-    } catch (error) {
-      throw new Error("Server Connection Error");
-    }
+    await Api.newMessage({
+      event: "connection",
+      id: Date.now(),
+      text: "",
+      user: userName.value,
+    });
+    isConnected.value = true;
   };
 
   const send = async () => {
+    if (messageText.value === "" || !isConnected.value) return;
     await Api.newMessage({
+      event: "message",
       id: Date.now(),
       text: messageText.value,
       user: userName.value,
     });
+    messageText.value = "";
   };
 
   const subscribe_LongPolling = async (cbAfterGetMessage: Function) => {
-    try {
-      const message: IMessage = await Api.getMessage();
+    const subscribe = async (cbAfterGetMessage: Function) => {
+      try {
+        const message: IMessage = await Api.getMessage();
 
-      messageList.value = [...messageList.value, message];
-      await cbAfterGetMessage();
+        messageList.value = [...messageList.value, message];
+        await cbAfterGetMessage();
 
-      subscribe_LongPolling(cbAfterGetMessage);
-    } catch (e) {
-      if (e instanceof AxiosError) {
-        if (e.code === "ERR_NETWORK") {
-          // Если сервер не доступен, то ждем 30 сек до следующего запроса
-          setTimeout(() => {
-            subscribe_LongPolling(cbAfterGetMessage);
-          }, 30 * 1000);
-        } else {
-          // Если таймаут ответа сервера, то ждем 1 сек до следующего запроса
-          console.log("Subcsribe TimeOut:", e);
-          setTimeout(() => {
-            subscribe_LongPolling(cbAfterGetMessage);
-          }, 1000);
-        }
-      } else throw e;
-    }
+        subscribe(cbAfterGetMessage);
+      } catch (e) {
+        if (e instanceof AxiosError) {
+          if (e.code === "ERR_NETWORK") {
+            // Если сервер не доступен, то ждем 30 сек до следующего запроса
+            setTimeout(() => {
+              subscribe(cbAfterGetMessage);
+            }, 30 * 1000);
+          } else {
+            // Если таймаут ответа сервера, то ждем 1 сек до следующего запроса
+            console.log("Subcsribe TimeOut:", e);
+            setTimeout(() => {
+              subscribe(cbAfterGetMessage);
+            }, 1000);
+          }
+        } else throw e;
+      }
+    };
+    subscribe(cbAfterGetMessage);
+    connect();
   };
 
   const subscribe_EventSourcing = async (cbAfterGetMessage: Function) => {
-    try {
-      const eventSource = new EventSource(Api.URL_EVENT_SOURCE);
-      eventSource.onmessage = async (event) => {
-        const message: IMessage = JSON.parse(event.data);
-        messageList.value = [...messageList.value, message];
-        await cbAfterGetMessage();
-      };
-    } catch (e) {
-      console.log("evsourc_err:", e);
-      throw e;
-    }
+    const eventSource = new EventSource(Api.URL_EVENT_SOURCE);
+    eventSource.onmessage = async (event) => {
+      const message: IMessage = JSON.parse(event.data);
+      messageList.value = [...messageList.value, message];
+      await cbAfterGetMessage();
+    };
+    connect();
   };
 
   return {
-    connect,
     send,
     subscribe_LongPolling,
     subscribe_EventSourcing,
@@ -135,24 +132,24 @@ function useHttp() {
 }
 
 export function useWebConnection(connectionType: ConnectionType) {
-  let connect, send, subscribe;
+  let send: () => Promise<any>;
+  let subscribe: (cbAfterGetMessage: Function) => Promise<any>;
 
   switch (connectionType) {
     case "WebSocket":
-      ({ connect, send, subscribe } = useWs());
+      ({ send, subscribe } = useWs());
       break;
 
     case "LongPolling":
-      ({ connect, send, subscribe_LongPolling: subscribe } = useHttp());
+      ({ send, subscribe_LongPolling: subscribe } = useHttp());
       break;
 
     default:
-      ({ connect, send, subscribe_EventSourcing: subscribe } = useHttp());
+      ({ send, subscribe_EventSourcing: subscribe } = useHttp());
       break;
   }
 
   return {
-    connect,
     subscribe,
     send,
     userName,

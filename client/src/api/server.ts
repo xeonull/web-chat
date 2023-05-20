@@ -22,6 +22,7 @@ class WebApi {
         id: message.id,
         text: message.text,
         user: message.user,
+        event: message.event,
       }
       // {
       //   headers: {

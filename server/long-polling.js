@@ -18,11 +18,9 @@ app.get("/get-message", (req, res) => {
 
 app.post("/new-message", (req, res) => {
   const message = req.body;
+  if (message.event === "connection") console.log(`${message.user} conneted`);
+  if (message.event === "message") console.log(`${message.user} says: '${message.text}'`);
   emitter.emit("NewMessage", message);
-  res.status(200).send();
-});
-
-app.get("/get-check", (req, res) => {
   res.status(200).send();
 });
 
